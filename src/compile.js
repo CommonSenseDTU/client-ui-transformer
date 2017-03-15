@@ -3,10 +3,16 @@
 
 import browserify from "browserify";
 import fs from "fs";
+import path from "path";
 import winston from "winston";
 
 function compile(filename: string) {
   var outputName: string = filename.replace(".flow.js", ".browserify.js");
+  const dirname: string = path.dirname(filename);
+  if (!fs.existsSync(dirname + "/node_modules")) {
+    fs.symlinkSync(process.cwd() + "/node_modules", dirname + "/node_modules", "dir");
+  }
+
   fs.open(outputName, "w", 0o555, function (error, fd) {
     if (error) {
       winston.error("Error opening " + outputName + ":", error);
@@ -18,8 +24,17 @@ function compile(filename: string) {
     }
     const outputStream = fs.createWriteStream(outputName, { fd: fd });
 
-    const compiler = browserify(filename, { transform: "babelify" });
-    compiler.bundle().pipe(outputStream);
+    winston.debug("pwd:", process.cwd());
+    const compiler = browserify(filename);
+    compiler.transform("babelify", {
+      "presets": ["es2015"],
+      "plugins": [
+        "babel-polyfill",
+        "syntax-flow",
+        "transform-flow-strip-types",
+        "transform-async-to-generator"
+      ]
+    }).bundle().pipe(outputStream);
   });
 }
 
